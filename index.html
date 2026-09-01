@@ -166,6 +166,28 @@
   .stats .n { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .stats .l { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
 
+  .hints {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 12px;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .hints span { white-space: nowrap; }
+  .hints kbd {
+    font: inherit;
+    font-size: 10px;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    padding: 1px 5px;
+    margin-right: 4px;
+    background: var(--bg);
+    color: var(--text);
+  }
+
   .settings summary {
     cursor: pointer;
     font-size: 13px;
@@ -238,6 +260,12 @@
     <div><span class="n" id="focusMin">0</span><span class="l">集中分</span></div>
     <div><span class="n" id="cycleCount">0</span><span class="l">サイクル</span></div>
   </div>
+
+  <p class="hints" aria-label="キーボードショートカット">
+    <span><kbd>Space</kbd>スタート／一時停止</span>
+    <span><kbd>R</kbd>リセット</span>
+    <span><kbd>S</kbd>スキップ</span>
+  </p>
 
   <details class="settings" id="settings">
     <summary></summary>
