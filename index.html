@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>タイムボックス・タイマー</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --text: #1c1f26;
+    --muted: #6b7280;
+    --border: #e3e6ea;
+    --accent: #e05a47;      /* work */
+    --accent-break: #3a9d78; /* break */
+    --track: #e8ebef;
+    --shadow: 0 10px 30px rgba(20, 24, 33, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b;
+      --panel: #1c1f26;
+      --text: #e8eaed;
+      --muted: #9aa1ac;
+      --border: #2b2f38;
+      --accent: #f0876f;
+      --accent-break: #4fb894;
+      --track: #2b2f38;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+                 "Yu Gothic UI", Meiryo, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 420px;
+    padding: 32px 28px 26px;
+  }
+
+  .modes {
+    display: flex;
+    gap: 6px;
+    background: var(--track);
+    border-radius: 999px;
+    padding: 4px;
+    margin-bottom: 28px;
+  }
+  .modes button {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 4px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background .18s, color .18s;
+  }
+  .modes button.active {
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  }
+
+  .dial {
+    position: relative;
+    width: 260px;
+    height: 260px;
+    margin: 0 auto 24px;
+  }
+  .dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .dial .track { stroke: var(--track); }
+  .dial .progress {
+    stroke: var(--accent);
+    stroke-linecap: round;
+    transition: stroke-dashoffset .3s linear, stroke .3s;
+  }
+  body.break .dial .progress { stroke: var(--accent-break); }
+  body.break .modes button.active { color: var(--accent-break); }
+
+  .readout {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .time {
+    font-size: 52px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+  }
+  .phase {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .controls button {
+    flex: 1;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
+    padding: 13px;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: transform .08s, background .18s, border-color .18s;
+  }
+  .controls button:active { transform: translateY(1px); }
+  .controls .primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    flex: 2;
+  }
+  body.break .controls .primary {
+    background: var(--accent-break);
+    border-color: var(--accent-break);
+  }
+
+  .stats {
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+    padding: 16px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  .stats div { display: flex; flex-direction: column; gap: 3px; }
+  .stats .n { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stats .l { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+  .settings summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    list-style: none;
+    padding: 6px 0;
+    user-select: none;
+  }
+  .settings summary::-webkit-details-marker { display: none; }
+  .settings summary::before { content: "⚙  設定"; }
+  .settings[open] summary::before { content: "⚙  設定を閉じる"; }
+
+  .field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    font-size: 14px;
+  }
+  .field label { color: var(--muted); }
+  .field input[type="number"] {
+    width: 68px;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    text-align: center;
+  }
+  .field input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+
+  @media (max-width: 440px) {
+    .app { padding: 24px 18px 20px; }
+    .dial { width: 220px; height: 220px; }
+    .time { font-size: 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="modes" id="modes">
+    <button data-mode="work" class="active">作業</button>
+    <button data-mode="short">小休憩</button>
+    <button data-mode="long">長休憩</button>
+  </div>
+
+  <div class="dial">
+    <svg viewBox="0 0 100 100">
+      <circle class="track" cx="50" cy="50" r="45" fill="none" stroke-width="6"/>
+      <circle class="progress" id="ring" cx="50" cy="50" r="45" fill="none" stroke-width="6"
+              stroke-dasharray="282.743" stroke-dashoffset="0"/>
+    </svg>
+    <div class="readout">
+      <div class="time" id="time">25:00</div>
+      <div class="phase" id="phase">作業</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="startBtn">スタート</button>
+    <button id="resetBtn">リセット</button>
+    <button id="skipBtn">スキップ</button>
+  </div>
+
+  <div class="stats">
+    <div><span class="n" id="doneCount">0</span><span class="l">完了ポモ</span></div>
+    <div><span class="n" id="focusMin">0</span><span class="l">集中分</span></div>
+    <div><span class="n" id="cycleCount">0</span><span class="l">サイクル</span></div>
+  </div>
+
+  <details class="settings" id="settings">
+    <summary></summary>
+    <div class="field">
+      <label for="s-work">作業（分）</label>
+      <input type="number" id="s-work" min="1" max="120" value="25">
+    </div>
+    <div class="field">
+      <label for="s-short">小休憩（分）</label>
+      <input type="number" id="s-short" min="1" max="60" value="5">
+    </div>
+    <div class="field">
+      <label for="s-long">長休憩（分）</label>
+      <input type="number" id="s-long" min="1" max="60" value="15">
+    </div>
+    <div class="field">
+      <label for="s-interval">長休憩までのポモ数</label>
+      <input type="number" id="s-interval" min="2" max="12" value="4">
+    </div>
+    <div class="field">
+      <label for="s-auto">次を自動で開始</label>
+      <input type="checkbox" id="s-auto" checked>
+    </div>
+    <div class="field">
+      <label for="s-sound">終了音</label>
+      <input type="checkbox" id="s-sound" checked>
+    </div>
+  </details>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var CIRC = 2 * Math.PI * 45; // 282.743
+  var STORE_KEY = "timebox.v1";
+
+  var els = {
+    body: document.body,
+    modes: document.getElementById("modes"),
+    ring: document.getElementById("ring"),
+    time: document.getElementById("time"),
+    phase: document.getElementById("phase"),
+    startBtn: document.getElementById("startBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    skipBtn: document.getElementById("skipBtn"),
+    doneCount: document.getElementById("doneCount"),
+    focusMin: document.getElementById("focusMin"),
+    cycleCount: document.getElementById("cycleCount"),
+    settings: document.getElementById("settings"),
+    sWork: document.getElementById("s-work"),
+    sShort: document.getElementById("s-short"),
+    sLong: document.getElementById("s-long"),
+    sInterval: document.getElementById("s-interval"),
+    sAuto: document.getElementById("s-auto"),
+    sSound: document.getElementById("s-sound")
+  };
+
+  var LABEL = { work: "作業", short: "小休憩", long: "長休憩" };
+
+  var cfg = {
+    work: 25, short: 5, long: 15, interval: 4, auto: true, sound: true
+  };
+  var stats = { done: 0, focus: 0, cycle: 0 };
+
+  var mode = "work";
+  var remaining = cfg.work * 60;   // seconds
+  var total = cfg.work * 60;
+  var running = false;
+  var tickHandle = null;
+  var endAt = 0;
+  var titleFlash = null;
+
+  /* ---------- persistence ---------- */
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      if (d.cfg) {
+        cfg.work = clampInt(d.cfg.work, 1, 120, 25);
+        cfg.short = clampInt(d.cfg.short, 1, 60, 5);
+        cfg.long = clampInt(d.cfg.long, 1, 60, 15);
+        cfg.interval = clampInt(d.cfg.interval, 2, 12, 4);
+        cfg.auto = !!d.cfg.auto;
+        cfg.sound = !!d.cfg.sound;
+      }
+      if (d.stats && d.day === today()) {
+        stats.done = d.stats.done | 0;
+        stats.focus = d.stats.focus | 0;
+        stats.cycle = d.stats.cycle | 0;
+      }
+    } catch (e) { /* ignore */ }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        cfg: cfg, stats: stats, day: today()
+      }));
+    } catch (e) { /* ignore */ }
+  }
+  function today() {
+    var t = new Date();
+    return t.getFullYear() + "-" + (t.getMonth() + 1) + "-" + t.getDate();
+  }
+  function clampInt(v, lo, hi, dflt) {
+    v = parseInt(v, 10);
+    if (isNaN(v)) return dflt;
+    return Math.min(hi, Math.max(lo, v));
+  }
+
+  /* ---------- rendering ---------- */
+  function fmt(sec) {
+    sec = Math.max(0, Math.round(sec));
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+  }
+  function render() {
+    els.time.textContent = fmt(remaining);
+    els.phase.textContent = LABEL[mode];
+    var frac = total > 0 ? remaining / total : 0;
+    els.ring.style.strokeDashoffset = (CIRC * (1 - frac)).toFixed(3);
+    els.body.classList.toggle("break", mode !== "work");
+    els.startBtn.textContent = running ? "一時停止" : (remaining === total ? "スタート" : "再開");
+    els.doneCount.textContent = stats.done;
+    els.focusMin.textContent = stats.focus;
+    els.cycleCount.textContent = stats.cycle;
+    Array.prototype.forEach.call(els.modes.children, function (b) {
+      b.classList.toggle("active", b.dataset.mode === mode);
+    });
+    if (!running && !titleFlash) document.title = fmt(remaining) + " · " + LABEL[mode];
+  }
+
+  function durationFor(m) {
+    return (m === "work" ? cfg.work : m === "short" ? cfg.short : cfg.long) * 60;
+  }
+
+  function setMode(m, autostart) {
+    mode = m;
+    total = durationFor(m);
+    remaining = total;
+    stopTick();
+    running = false;
+    render();
+    if (autostart) start();
+  }
+
+  /* ---------- timer loop ---------- */
+  function start() {
+    if (running || remaining <= 0) return;
+    running = true;
+    endAt = Date.now() + remaining * 1000;
+    clearTitleFlash();
+    tickHandle = setInterval(tick, 250);
+    render();
+  }
+  function pause() {
+    if (!running) return;
+    running = false;
+    stopTick();
+    remaining = Math.max(0, (endAt - Date.now()) / 1000);
+    render();
+  }
+  function stopTick() {
+    if (tickHandle) { clearInterval(tickHandle); tickHandle = null; }
+  }
+  function tick() {
+    remaining = (endAt - Date.now()) / 1000;
+    if (remaining <= 0) {
+      remaining = 0;
+      stopTick();
+      running = false;
+      complete();
+      return;
+    }
+    render();
+  }
+
+  function complete() {
+    var finished = mode;
+    if (finished === "work") {
+      stats.done += 1;
+      stats.focus += cfg.work;
+    }
+    var next;
+    if (finished === "work") {
+      var isLong = stats.done % cfg.interval === 0;
+      next = isLong ? "long" : "short";
+      if (isLong) stats.cycle += 1;
+    } else {
+      next = "work";
+    }
+    save();
+    chime(finished === "work");
+    flashTitle(finished === "work" ? "休憩どうぞ ▸" : "作業へ戻る ▸");
+    setMode(next, cfg.auto);
+  }
+
+  /* ---------- sound ---------- */
+  var actx = null;
+  function chime(highToLow) {
+    if (!cfg.sound) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === "suspended") actx.resume();
+      var seq = highToLow ? [880, 660, 523.25] : [523.25, 659.25, 783.99];
+      var t0 = actx.currentTime;
+      seq.forEach(function (f, i) {
+        var o = actx.createOscillator();
+        var g = actx.createGain();
+        o.type = "sine";
+        o.frequency.value = f;
+        var s = t0 + i * 0.18;
+        g.gain.setValueAtTime(0.0001, s);
+        g.gain.exponentialRampToValueAtTime(0.25, s + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, s + 0.32);
+        o.connect(g).connect(actx.destination);
+        o.start(s);
+        o.stop(s + 0.34);
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  /* ---------- title flash ---------- */
+  function flashTitle(msg) {
+    clearTitleFlash();
+    var on = false;
+    titleFlash = setInterval(function () {
+      on = !on;
+      document.title = on ? msg : "⏰ タイムボックス";
+    }, 800);
+    window.addEventListener("focus", clearTitleFlash, { once: true });
+  }
+  function clearTitleFlash() {
+    if (titleFlash) { clearInterval(titleFlash); titleFlash = null; }
+    render();
+  }
+
+  /* ---------- settings wiring ---------- */
+  function syncSettingsInputs() {
+    els.sWork.value = cfg.work;
+    els.sShort.value = cfg.short;
+    els.sLong.value = cfg.long;
+    els.sInterval.value = cfg.interval;
+    els.sAuto.checked = cfg.auto;
+    els.sSound.checked = cfg.sound;
+  }
+  function readSettings() {
+    cfg.work = clampInt(els.sWork.value, 1, 120, 25);
+    cfg.short = clampInt(els.sShort.value, 1, 60, 5);
+    cfg.long = clampInt(els.sLong.value, 1, 60, 15);
+    cfg.interval = clampInt(els.sInterval.value, 2, 12, 4);
+    cfg.auto = els.sAuto.checked;
+    cfg.sound = els.sSound.checked;
+    save();
+    if (!running) {
+      total = durationFor(mode);
+      remaining = total;
+    }
+    render();
+  }
+  [els.sWork, els.sShort, els.sLong, els.sInterval].forEach(function (inp) {
+    inp.addEventListener("change", readSettings);
+  });
+  els.sAuto.addEventListener("change", readSettings);
+  els.sSound.addEventListener("change", readSettings);
+
+  /* ---------- controls ---------- */
+  els.startBtn.addEventListener("click", function () {
+    running ? pause() : start();
+  });
+  els.resetBtn.addEventListener("click", function () {
+    stopTick();
+    running = false;
+    remaining = total = durationFor(mode);
+    clearTitleFlash();
+    render();
+  });
+  els.skipBtn.addEventListener("click", function () {
+    stopTick();
+    running = false;
+    complete();
+  });
+  els.modes.addEventListener("click", function (e) {
+    var btn = e.target.closest("button");
+    if (!btn) return;
+    setMode(btn.dataset.mode, false);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "INPUT") return;
+    if (e.code === "Space") { e.preventDefault(); running ? pause() : start(); }
+    else if (e.key === "r" || e.key === "R") els.resetBtn.click();
+    else if (e.key === "s" || e.key === "S") els.skipBtn.click();
+  });
+
+  /* ---------- boot ---------- */
+  load();
+  syncSettingsInputs();
+  setMode("work", false);
+})();
+</script>
+</body>
+</html>
